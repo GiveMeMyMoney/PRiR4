@@ -1,5 +1,6 @@
 import java.rmi.RemoteException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 public class PMO_Test_Board implements PMO_LogSource, PMO_Test_ShipsAccess {

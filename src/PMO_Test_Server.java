@@ -1,4 +1,3 @@
-import java.rmi.AlreadyBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
@@ -90,13 +89,13 @@ public class PMO_Test_Server implements GameInterface, PMO_LogSource {
             if ( r0 > r1 ) {
                 PMO_SystemOutRedirect.println( "WYGRANA gracza " + name0 );
                 if ( ! test0 ) {
-                    PMO_SystemOutRedirect.println( "UWAGA GRACZ NIE ZALICZYŁ TESTU" );
+                    PMO_SystemOutRedirect.println( "UWAGA GRACZ NIE ZALICZYL TESTU" );
                 }
             }
             if ( r0 < r1 ) {
                 PMO_SystemOutRedirect.println( "WYGRANA gracza " + name1 );
                 if ( ! test1 ) {
-                    PMO_SystemOutRedirect.println( "UWAGA GRACZ NIE ZALICZYŁ TESTU" );
+                    PMO_SystemOutRedirect.println( "UWAGA GRACZ NIE ZALICZYL TESTU" );
                 }
             }
 

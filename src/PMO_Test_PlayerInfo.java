@@ -13,7 +13,7 @@ public class PMO_Test_PlayerInfo {
     private boolean singleTest( AtomicBoolean flag, String txt ) {
         PMO_SystemOutRedirect.print( "> " +  txt + " : " );
         if ( flag.get() ) {
-            PMO_SystemOutRedirect.println( "BŁĄD");
+            PMO_SystemOutRedirect.println( "BLAD");
             return false;
         } else {
             PMO_SystemOutRedirect.println( "OK");
@@ -33,7 +33,7 @@ public class PMO_Test_PlayerInfo {
         PMO_SystemOutRedirect.print( "> liczba jednoczesnych operacji " +
                 parallelOperationsMax.get() + " ");
         if ( parallelOperationsMax.get() < PMO_Test_Consts.PARALLEL_CALL_EXPECTED ) {
-            PMO_SystemOutRedirect.println( "BŁĄD");
+            PMO_SystemOutRedirect.println( "BLAD");
             result = false;
         } else {
             PMO_SystemOutRedirect.println( "OK");
