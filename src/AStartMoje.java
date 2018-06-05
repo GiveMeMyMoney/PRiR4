@@ -98,9 +98,18 @@ class Client {
             warshipsCoordinateMap.put(shipIdx, new GameInterface.PositionAndCourse(position, GAME.getCourse(playerId, shipIdx)));
             allWarshipsPositionSet.add(position);
 
-            //nowy watek nie odpalany
+            //nowy watek nie odpalany - WarshipGarrision
         }
     }
+
+    //region RANDOM
+    private static boolean getRandomForMove() {
+        return Math.random() < 0.7; //wieksze prawodpodobienstwo
+    }
+
+    //endregion
+
+    //TODO osobny watek do getMesseage!!!!!!!!!!!!!!!
 
     class WarshipGarrision implements Runnable {
         int warhsipId;
@@ -124,22 +133,57 @@ class Client {
             warshipsCoordinateMap.remove(warhsipId);
         }
 
+        private void turn() {
+            if (Math.random() < 0.5) {
+                changeCourse(this.warhsipId, EDirectionToMove.LEFT);
+            } else {
+                changeCourse(this.warhsipId, EDirectionToMove.RIGHT);
+            }
+        }
+
         @Override
         public void run() {
             while (checkIsAlive()) {
                 //jest jakiœ statek to strzelaj!
                 if (!enemyDetectedWarshipDeque.isEmpty()) {
                     //biore ostatnio wykryty
+                    GameInterface.Position positionTarget;
                     synchronized (prepareForShotHelper) {
                         AvailableEnemyPosition availableEnemyPosition = enemyDetectedWarshipDeque.peekLast();
-                        GameInterface.Position position = availableEnemyPosition.pollNextPosition();
-
+                        positionTarget = availableEnemyPosition.pollNextPosition();
+                        //jezeli pozycje wszystkie ostrzelane to usun
+                        if (positionTarget == null || availableEnemyPosition.positions.isEmpty()) {
+                            //TODO sprawdzic
+                            //usuwam jesli to ostatni mozliwy strzal
+                            enemyDetectedWarshipDeque.removeLastOccurrence(availableEnemyPosition);
+                        }
+                    }
+                    //strzelam jesli && nie moge strzelic jezeli tam jest moj statek...
+                    if (positionTarget != null && !allWarshipsPositionSet.contains(positionTarget)) {
+                        try {
+                            allFirePositionSet.add(positionTarget);
+                            GAME.fire(playerId, warhsipId, positionTarget);
+                            allFirePositionSet.remove(positionTarget);
+                        } catch (RemoteException e) {
+                            System.out.println("fire ex: " + e.getMessage());
+                        }
+                    }
+                } //poruszam sie
+                else {
+                    if (getRandomForMove()) {
+                        //rusz jezeli mozesz
+                        boolean canMove = canMoveWarshipToPosition(warhsipId, null, true);
+                        //statek nie moze ruszyc sprobuj obrocic
+                        if (!canMove) {
+                            turn();
+                        }
+                    } else {
+                        turn();
                     }
                 }
-
             }
 
-            //statek wrak
+            //statek wrak :(
             cleanWreck();
         }
     }
@@ -155,11 +199,11 @@ class Client {
         prepareForStorm();
         GAME.waitForStart(playerId);
 
-        //startStrom()
+        //startStrom() - wystartowac wszystkie przygotowane watki...
     }
 
     //region MOVE
-    private void moveShip(int shipId, GameInterface.Position positionFrom, GameInterface.Position positionTo, GameInterface.Course course) throws RemoteException {
+    private void moveShip(int shipId, GameInterface.Position positionFrom, GameInterface.Position positionTo, GameInterface.Course course) {
         //TODO czy trzeba to syncrhonized? nie zapetli sie?
         synchronized (allWarshipsPositionSet) {
             allWarshipsPositionSet.add(positionTo);
@@ -168,40 +212,59 @@ class Client {
         //aktualizacja danych dla statku
         warshipsCoordinateMap.put(shipId, new GameInterface.PositionAndCourse(positionTo, course));
         //MOVE
-        GAME.move(playerId, shipId);
+        try {
+            GAME.move(playerId, shipId);
+        } catch (RemoteException e) {
+            System.out.println("moveShip ex: " + e.getMessage());
+        }
     }
 
-    private void moveWarshipToPosition(int shipId) throws RemoteException {
+    private boolean canMoveWarshipToPosition(int shipId, GameInterface.Course course, boolean moveIfCan) {
         GameInterface.PositionAndCourse positionAndCourse = warshipsCoordinateMap.get(shipId);
         GameInterface.Position positionFrom = positionAndCourse.getPosition();
-        GameInterface.Course course = positionAndCourse.getCourse();
+        if (course == null) {
+            course = positionAndCourse.getCourse();
+        }
 
         //TODO w IFACH jeszcze posytionFire!!!!!!!!!!!!!!!!!!!
         if (GameInterface.Course.WEST == course) {
             GameInterface.Position positionTo = new GameInterface.Position(positionFrom.getCol() - 1, positionFrom.getRow());
-            //nie wyjdzie poza mape ani nie zderzy sie z innym swoim statkiem
-            if (positionTo.getCol() >= 0 && !allWarshipsPositionSet.contains(positionTo)) {
-                moveShip(shipId, positionFrom, positionTo, course);
+            //nie wyjdzie poza mape ani nie zderzy sie z innym swoim statkiem ani nie wejdzie w pole do strzelania
+            if (positionTo.getCol() >= 0 && !allWarshipsPositionSet.contains(positionTo) && !allFirePositionSet.contains(positionTo)) {
+                if (moveIfCan) {
+                    moveShip(shipId, positionFrom, positionTo, course);
+                }
+                return true;
             }
         } else if (GameInterface.Course.EAST == course) {
             GameInterface.Position positionTo = new GameInterface.Position(positionFrom.getCol() + 1, positionFrom.getRow());
             //nie wyjdzie poza mape ani nie zderzy sie z innym swoim statkiem
-            if (positionTo.getCol() < GameInterface.WIDTH && !allWarshipsPositionSet.contains(positionTo)) {
-                moveShip(shipId, positionFrom, positionTo, course);
+            if (positionTo.getCol() < GameInterface.WIDTH && !allWarshipsPositionSet.contains(positionTo) && !allFirePositionSet.contains(positionTo)) {
+                if (moveIfCan) {
+                    moveShip(shipId, positionFrom, positionTo, course);
+                }
+                return true;
             }
         } else if (GameInterface.Course.SOUTH == course) {
             GameInterface.Position positionTo = new GameInterface.Position(positionFrom.getCol(), positionFrom.getRow() - 1);
             //nie wyjdzie poza mape ani nie zderzy sie z innym swoim statkiem
-            if (positionTo.getRow() >= 0 && !allWarshipsPositionSet.contains(positionTo)) {
-                moveShip(shipId, positionFrom, positionTo, course);
+            if (positionTo.getRow() >= 0 && !allWarshipsPositionSet.contains(positionTo) && !allFirePositionSet.contains(positionTo)) {
+                if (moveIfCan) {
+                    moveShip(shipId, positionFrom, positionTo, course);
+                }
+                return true;
             }
         } else if (GameInterface.Course.NORTH == course) {
             GameInterface.Position positionTo = new GameInterface.Position(positionFrom.getCol(), positionFrom.getRow() + 1);
             //nie wyjdzie poza mape ani nie zderzy sie z innym swoim statkiem
-            if (positionTo.getRow() < GameInterface.HIGHT && !allWarshipsPositionSet.contains(positionTo)) {
-                moveShip(shipId, positionFrom, positionTo, course);
+            if (positionTo.getRow() < GameInterface.HIGHT && !allWarshipsPositionSet.contains(positionTo) && !allFirePositionSet.contains(positionTo)) {
+                if (moveIfCan) {
+                    moveShip(shipId, positionFrom, positionTo, course);
+                }
+                return true;
             }
         }
+        return false;
     }
     //endregion
 
@@ -210,22 +273,40 @@ class Client {
         RIGHT, LEFT;
     }
 
-    private void changeCourse(int shipId, EDirectionToMove directionToMove) throws RemoteException {
+    //bez sensu zeby np. skrecal w lewo jak jest przy scianie
+    private void changeCourse(int shipId, EDirectionToMove directionToMove) {
         GameInterface.PositionAndCourse actualPositionAndCourse = warshipsCoordinateMap.get(shipId);
-        if (EDirectionToMove.LEFT.equals(directionToMove)) {
-            GameInterface.Course newCourse = actualPositionAndCourse.getCourse().afterTurnToLeft();
-            warshipsCoordinateMap.put(shipId, new GameInterface.PositionAndCourse(actualPositionAndCourse.getPosition(), newCourse));
-            GAME.turnLeft(playerId, shipId);
-        } else if (EDirectionToMove.RIGHT.equals(directionToMove)) {
-            GameInterface.Course newCourse = actualPositionAndCourse.getCourse().afterTurnToRight();
-            warshipsCoordinateMap.put(shipId, new GameInterface.PositionAndCourse(actualPositionAndCourse.getPosition(), newCourse));
-            GAME.turnRight(playerId, shipId);
+        try {
+            if (EDirectionToMove.LEFT.equals(directionToMove)) {
+                GameInterface.Course newCourse = actualPositionAndCourse.getCourse().afterTurnToLeft();
+                boolean canMoveAfterTurn = canMoveWarshipToPosition(shipId, newCourse, false);
+                if (canMoveAfterTurn) {
+                    warshipsCoordinateMap.put(shipId, new GameInterface.PositionAndCourse(actualPositionAndCourse.getPosition(), newCourse));
+                    GAME.turnLeft(playerId, shipId);
+                } else {
+                    newCourse = actualPositionAndCourse.getCourse().afterTurnToRight();
+                    warshipsCoordinateMap.put(shipId, new GameInterface.PositionAndCourse(actualPositionAndCourse.getPosition(), newCourse));
+                    GAME.turnRight(playerId, shipId);
+                }
+
+            } else if (EDirectionToMove.RIGHT.equals(directionToMove)) {
+                GameInterface.Course newCourse = actualPositionAndCourse.getCourse().afterTurnToRight();
+                boolean canMoveAfterTurn = canMoveWarshipToPosition(shipId, newCourse, false);
+                if (canMoveAfterTurn) {
+                    warshipsCoordinateMap.put(shipId, new GameInterface.PositionAndCourse(actualPositionAndCourse.getPosition(), newCourse));
+                    GAME.turnRight(playerId, shipId);
+                } else {
+                    newCourse = actualPositionAndCourse.getCourse().afterTurnToLeft();
+                    warshipsCoordinateMap.put(shipId, new GameInterface.PositionAndCourse(actualPositionAndCourse.getPosition(), newCourse));
+                    GAME.turnLeft(playerId, shipId);
+                }
+            }
+        } catch (RemoteException e) {
+            System.out.println("changeCourse ex: " + e.getMessage());
         }
     }
 
     //endregion
-
-
 }
 
 
