@@ -14,7 +14,7 @@ enum Direction {
     LEFT
 }
 
-class Start {
+class Start2 {
     private long playerID;
     private GameInterface game;
     private String PLAYER_NAME = "JacekZawodny";
@@ -180,7 +180,7 @@ class Start {
     }
 
     public static void main(String[] args) throws RemoteException {
-        Start player = new Start();
+        Start2 player = new Start2();
         player.fight();
     }
 }
